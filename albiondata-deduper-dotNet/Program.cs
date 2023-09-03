@@ -25,11 +25,8 @@ namespace albiondata_deduper_dotNet
     [Option(Description = "Redis Password", ShortName = "p", ShowInHelpText = true)]
     public static string RedisPassword { get; set; } = "";
 
-    [Option(Description = "Incoming Public NATS Url", ShortName = "n", ShowInHelpText = true)]
-    public static string IncomingPublicNatsUrl { get; set; } = "nats://public:thenewalbiondata@nats.albion-online-data.com:4222";
-
-    [Option(Description = "Incoming Private NATS Url", ShortName = "np", ShowInHelpText = true)]
-    public static string IncomingPrivateNatsUrl { get; set; } = "nats://localhost:4222";
+    [Option(Description = "Incoming NATS Url", ShortName = "n", ShowInHelpText = true)]
+    public static string IncomingNatsUrl { get; set; } = "nats://localhost:4222, nats://public:thenewalbiondata@nats.albion-online-data.com:4222";
 
     [Option(Description = "Outgoing NATS Url", ShortName = "o", ShowInHelpText = true)]
     public static string OutgoingNatsUrl { get; set; } = "nats://localhost:4222";
@@ -72,31 +69,17 @@ namespace albiondata_deduper_dotNet
       }
     }
 
-    private static readonly Lazy<IConnection> lazyIncomingPublicNats = new Lazy<IConnection>(() =>
+    private static readonly Lazy<IConnection> lazyIncomingNats = new Lazy<IConnection>(() =>
     {
       var natsFactory = new ConnectionFactory();
-      return natsFactory.CreateConnection(IncomingPublicNatsUrl);
+      return natsFactory.CreateConnection(IncomingNatsUrl);
     });
 
-    public static IConnection IncomingPublicNatsConnection
+    public static IConnection IncomingNatsConnection
     {
       get
       {
-        return lazyIncomingPublicNats.Value;
-      }
-    }
-
-    private static readonly Lazy<IConnection> lazyIncomingPrivateNats = new Lazy<IConnection>(() =>
-    {
-      var natsFactory = new ConnectionFactory();
-      return natsFactory.CreateConnection(IncomingPrivateNatsUrl);
-    });
-
-    public static IConnection IncomingPrivateNatsConnection
-    {
-      get
-      {
-        return lazyIncomingPrivateNats.Value;
+        return lazyIncomingNats.Value;
       }
     }
 
@@ -136,8 +119,7 @@ namespace albiondata_deduper_dotNet
 
       var logger = CreateLogger<Program>();
       logger.LogInformation($"Redis URL: {RedisAddress}");
-      logger.LogInformation($"Incoming Public Nats URL: {IncomingPublicNatsUrl}");
-      logger.LogInformation($"Incoming Private Nats URL: {IncomingPrivateNatsUrl}");
+      logger.LogInformation($"Incoming Nats URL: {IncomingNatsUrl}");
       logger.LogInformation($"Outgoing Nats URL: {OutgoingNatsUrl}");
 
       if (Debug)
@@ -157,50 +139,29 @@ namespace albiondata_deduper_dotNet
         }
       }
 
-      logger.LogInformation($"Incoming Public NATS Connected, ID: {IncomingPublicNatsConnection.ConnectedId}");
-      logger.LogInformation($"Incoming Private NATS Connected, ID: {IncomingPrivateNatsConnection.ConnectedId}");
+      logger.LogInformation($"Incoming NATS Connected, ID: {IncomingNatsConnection.ConnectedId}");
       logger.LogInformation($"Outgoing NATS Connected, ID: {OutgoingNatsConnection.ConnectedId}");
+      var incomingMarketOrders = IncomingNatsConnection.SubscribeAsync(marketOrdersIngest);
+      var incomingHistories = IncomingNatsConnection.SubscribeAsync(marketHistoriesIngest);
+      var incomingMapData = IncomingNatsConnection.SubscribeAsync(mapDataIngest);
+      var incomingGoldData = IncomingNatsConnection.SubscribeAsync(goldDataIngest);
 
-      var incomingPublicMarketOrders = IncomingPublicNatsConnection.SubscribeAsync(marketOrdersIngest);
-      var incomingPublicHistories = IncomingPublicNatsConnection.SubscribeAsync(marketHistoriesIngest);
-      var incomingPublicMapData = IncomingPublicNatsConnection.SubscribeAsync(mapDataIngest);
-      var incomingPublicGoldData = IncomingPublicNatsConnection.SubscribeAsync(goldDataIngest);
+      incomingMarketOrders.MessageHandler += HandleMarketOrder;
+      incomingHistories.MessageHandler += HandleHistory;
+      incomingMapData.MessageHandler += HandleMapData;
+      incomingGoldData.MessageHandler += HandleGoldData;
 
-      incomingPublicMarketOrders.MessageHandler += HandleMarketOrder;
-      incomingPublicHistories.MessageHandler += HandleHistory;
-      incomingPublicMapData.MessageHandler += HandleMapData;
-      incomingPublicGoldData.MessageHandler += HandleGoldData;
-
-      incomingPublicMarketOrders.Start();
-      logger.LogInformation("Listening for Market Order Data from public NATS");
-      incomingPublicHistories.Start();
-      logger.LogInformation("Listening for Market History Data from public NATS");
-      incomingPublicMapData.Start();
-      logger.LogInformation("Listening for Map Data from public NATS");
-      incomingPublicGoldData.Start();
-      logger.LogInformation("Listening for Gold Data from public NATS");
-
-      var incomingPrivateMarketOrders = IncomingPrivateNatsConnection.SubscribeAsync(marketOrdersIngest);
-      var incomingPrivateHistories = IncomingPrivateNatsConnection.SubscribeAsync(marketHistoriesIngest);
-      var incomingPrivateMapData = IncomingPrivateNatsConnection.SubscribeAsync(mapDataIngest);
-      var incomingPrivateGoldData = IncomingPrivateNatsConnection.SubscribeAsync(goldDataIngest);
-
-      incomingPrivateMarketOrders.MessageHandler += HandleMarketOrder;
-      incomingPrivateHistories.MessageHandler += HandleHistory;
-      incomingPrivateMapData.MessageHandler += HandleMapData;
-      incomingPrivateGoldData.MessageHandler += HandleGoldData;
-
-      incomingPrivateMarketOrders.Start();
-      logger.LogInformation("Listening for Market Order Data from private NATS");
-      incomingPrivateHistories.Start();
-      logger.LogInformation("Listening for Market History Data from private NATS");
-      incomingPrivateMapData.Start();
-      logger.LogInformation("Listening for Map Data from private NATS");
-      incomingPrivateGoldData.Start();
-      logger.LogInformation("Listening for Gold Data from private NATS");
+      incomingMarketOrders.Start();
+      logger.LogInformation("Listening for Market Order Data");
+      incomingHistories.Start();
+      logger.LogInformation("Listening for Market History Data");
+      incomingMapData.Start();
+      logger.LogInformation("Listening for Map Data");
+      incomingGoldData.Start();
+      logger.LogInformation("Listening for Gold Data");
 
       quitEvent.WaitOne();
-      IncomingPublicNatsConnection.Close();
+      IncomingNatsConnection.Close();
       OutgoingNatsConnection.Close();
       RedisConnection.Dispose();
     }
