@@ -26,7 +26,7 @@ namespace albiondata_deduper_dotNet
     public static string RedisPassword { get; set; } = "";
 
     [Option(Description = "Incoming NATS Url", ShortName = "n", ShowInHelpText = true)]
-    public static string IncomingNatsUrl { get; set; } = "nats://localhost:4222, nats://public:thenewalbiondata@nats.albion-online-data.com:4222";
+    public static string IncomingNatsUrl { get; set; } = "nats://localhost:4222";
 
     [Option(Description = "Outgoing NATS Url", ShortName = "o", ShowInHelpText = true)]
     public static string OutgoingNatsUrl { get; set; } = "nats://localhost:4222";
